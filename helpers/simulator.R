@@ -9,3 +9,4 @@ produceData <- function(){
   res = results(dd1)
   return(as.data.frame(res))  
 }
+   
