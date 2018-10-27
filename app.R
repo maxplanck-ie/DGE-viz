@@ -14,7 +14,6 @@ ui <- fluidPage(
        sliderInput('logfc.thrs','Threshold for log2 fold-change', value =c(-1,1),min=-8,max=8,step=1/4),
        sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0,max=log2(2**13),step=1/10,round=TRUE),
        # fileInput('annotationFile','Annotation GTF'),
-       verbatimTextOutput('brush'),
        verbatimTextOutput('errorOut')
      ),
      mainPanel(
@@ -24,7 +23,7 @@ ui <- fluidPage(
                   plotOutput("volcanoPlot", brush = "volcano_brush")),
          tabPanel('Table', DT::dataTableOutput('outtab'))
      )))
- )
+)
 
 tablecols.required = c('log2FoldChange','baseMean','pvalue','padj')
 
@@ -91,13 +90,9 @@ server <- function(input, output, session) {
   output$errorOut <- renderText({
     b1 = tablecols.required %in% colnames(data_raw())
     if(!all(b1))
-      return(paste("Table misses columns:\n", paste(tablecols.required[!b1], sep = '\n')))
-  })
-  
-  output$brush <- renderText({
-    paste0("brush: ", paste(ma_brush(input$ma_brush)))
+      return(paste("Columns not found:\n", paste(tablecols.required[!b1], sep = '\n')))
   })
 }
 
-# Run the application 
+# Run the application
 shinyApp(ui = ui, server = server)
