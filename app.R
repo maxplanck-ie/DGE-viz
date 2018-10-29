@@ -10,53 +10,77 @@ ui <- fluidPage(
    sidebarLayout(
      sidebarPanel(
        fileInput('inputFile','DGE table'),
-       sliderInput('padj.thrs', 'Threshold for padj', value =0.05, min = 0, max = 1, step = 1/100),
-       sliderInput('logfc.thrs','Threshold for log2 fold-change', value =c(-1,1),min=-8,max=8,step=1/4),
-       sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0,max=log2(2**13),step=1/10,round=TRUE),
-       # fileInput('annotationFile','Annotation GTF'),
-       verbatimTextOutput('errorOut')
-     ),
-     mainPanel(
        tabsetPanel(
-         tabPanel('Plots',
-                  plotOutput("MAplot", brush = "ma_brush"),
-                  plotOutput("volcanoPlot", brush = "volcano_brush")),
-         tabPanel('Table', DT::dataTableOutput('outtab'))
+         tabPanel("Parameter",
+           sliderInput('padj.thrs', 'Threshold for padj', value =0.05, min = 0, max = 1, step = 1/100),
+           sliderInput('logfc.thrs','Threshold for log2 fold-change', value =c(-1,1),min=-8,max=8,step=1/4),
+           sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0,max=log2(2**13),step=1/10,round=TRUE)
+           # fileInput('annotationFile','Annotation GTF'),
+         ),
+         tabPanel("Columns",
+                  h1("Warning:"),
+                  p("Change options only if your table is not canonical DESeq2 format"),
+                  numericInput('expr_col', label = 'baseMean', value = 2, min = 1),
+                  numericInput('lfc_col', label = 'log2FoldChange', value = 3, min = 1),
+                  numericInput('pvalue_col', label = 'pvalue', value = 6, min = 1),
+                  numericInput('padj_col', label = 'padj', value = 7, min = 1),
+                  actionButton('updateidx','Update')
+                )
+       ),
+       verbatimTextOutput('errorOut', placeholder = TRUE)
+   ),
+   mainPanel(
+     tabsetPanel(
+       tabPanel('Plots',
+                plotOutput("MAplot", brush = "ma_brush"),
+                plotOutput("volcanoPlot", brush = "volcano_brush")),
+       tabPanel('Table - selected data', DT::dataTableOutput('outtab')),
+       tabPanel("Table - preview input", tableOutput('preview'))
      )))
 )
 
 tablecols.required = c('log2FoldChange','baseMean','pvalue','padj')
 
 server <- function(input, output, session) {
-  data_raw = eventReactive( input$inputFile, { 
+  
+  data_raw = eventReactive(input$inputFile, { 
     loadData(input$inputFile$datapath)
   })
   
   data = reactive({
       y = data_raw()
+      
+      idx.cols = c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col)
+      colnames(y)[c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col)] <- tablecols.required
+      
       if(!is.null(input$ma_brush)){
         print("Using ma_brush to select")
         update.vals = ma_brush(input$ma_brush)
         y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
                           2**update.vals$expr[1] < y$baseMean & y$baseMean < 2**update.vals$expr[2],
                         'significant','not');
-        y$sign = relevel(as.factor(y$sign), ref = 'significant');
       } else if(!is.null(input$volcano_brush)) {
         print("Using volcano_brush to select")
         update.vals = volcano_brush(input$volcano_brush)
         y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
                           update.vals$pval[1] < -log10(y$pvalue) & -log10(y$pvalue) < update.vals$pval[2],
                         'significant','not');
-        y$sign = relevel(as.factor(y$sign), ref = 'significant');
       } else {
         print("Using sliders to select")
         y$sign = ifelse(y$padj < input$padj.thrs & 
                           ( y$log2FoldChange < input$logfc.thrs[1] | y$log2FoldChange > input$logfc.thrs[2]) &
                           (2**input$expr.thrs[1] <= y$baseMean & y$baseMean <= 2**input$expr.thrs[2] ),
                         'significant','not');
-        y$sign = relevel(as.factor(y$sign), ref = 'significant');
       }
+      y$sign = factor(as.factor(y$sign), levels = c('significant','not',NA));
       y
+  })
+  
+  output$preview <- renderTable({
+    y = data_raw()[1:5,]
+    y.num = apply(y, 2, is.numeric)
+    y[,y.num] = apply(y[,y.num],2, round, 2)
+    head(y)
   })
   
   output$MAplot <- renderPlot({
@@ -79,14 +103,27 @@ server <- function(input, output, session) {
   
   output$outtab <- renderDT({ 
     x = subset(data(), sign == 'significant');
+    
     x = x[,!(colnames(x) %in% 'sign')]
-    DT::datatable(round(x[order(x$padj, decreasing = FALSE),], 4), 
-                  extensions = 'Buttons', options = list(
-                    dom = 'Bfrtip',
-                    buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-                  ))
-  }, server=FALSE)
-  
+    
+    x.num = sapply(dd1, class) == class(numeric())
+    # x[,x.num] = apply(x[,x.num],2,round,4)
+    
+    
+    formatRound(
+      DT::datatable(x,
+                    rownames = FALSE,
+                    extensions = 'Buttons', options = list(
+                      dom = 'Bfrtip',
+                      buttons = list('copy', 
+                                     list(                        
+                                       extend = 'collection',
+                                       buttons = c('csv', 'excel', 'pdf'),
+                                       text = 'Download'
+                                     ))
+                    )),
+                which(x.num), digits = 2)
+    }, server=FALSE)
   output$errorOut <- renderText({
     b1 = tablecols.required %in% colnames(data_raw())
     if(!all(b1))
