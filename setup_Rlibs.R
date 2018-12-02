@@ -1,4 +1,4 @@
-packages = c('DT',
+gitpackages = c('DT',
              'data.table',
              'dplyr',
              'readr',
