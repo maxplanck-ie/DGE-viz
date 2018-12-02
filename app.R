@@ -1,6 +1,7 @@
-library(shiny)
-library(DT)
-library(ggplot2)
+library(shiny) # should be provided by shiny server by default
+library(DT, lib.loc = './Rlib')
+library(ggplot2, lib.loc = './Rlib')
+library(data.table, lib.loc = './Rlib')
 
 source('helpers/helpers.R')
 source('helpers/interactiveplots.R')
@@ -78,9 +79,9 @@ server <- function(input, output, session) {
   
   output$preview <- renderTable({
     y = data_raw()[1:5,]
-    y.num = apply(y, 2, is.numeric)
-    y[,y.num] = apply(y[,y.num],2, round, 2)
-    head(y)
+    y.num = sapply(y, is.numeric)
+    y[y.num] = apply(y[y.num],2, round, 2)
+    head(as.data.frame(y))
   })
   
   output$MAplot <- renderPlot({
@@ -103,12 +104,8 @@ server <- function(input, output, session) {
   
   output$outtab <- renderDT({ 
     x = subset(data(), sign == 'significant');
-    
     x = x[,!(colnames(x) %in% 'sign')]
-    
-    x.num = sapply(dd1, class) == class(numeric())
-    # x[,x.num] = apply(x[,x.num],2,round,4)
-    
+    x.num = sapply(x, class) == class(numeric())
     
     formatRound(
       DT::datatable(x,
