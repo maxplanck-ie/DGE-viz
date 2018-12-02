@@ -20,5 +20,5 @@ if(all(!b))
 
 for(p in packages[b]){
   cat(">> Installing",p,' to ./Rlib\n')
-  install.packages(p, lib = './Rlib/')
+  install.packages(p, lib = './Rlib/', repos = 'https://cloud.r-project.org/ ')
 }
