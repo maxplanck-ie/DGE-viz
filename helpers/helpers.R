@@ -1,6 +1,6 @@
 parseData <- function(data.file){
-  require(tidyverse)
-  return(read_tsv(data.file))
+  require(data.table, lib.loc = './Rlib')
+  return(fread(data.file))
 }
 
 loadSimulatedData <- function(){

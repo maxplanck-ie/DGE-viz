@@ -1,6 +1,7 @@
-library(shiny)
-library(DT)
-library(ggplot2)
+library(shiny) # should be provided by shiny server by default
+library(DT, lib.loc = './Rlib')
+library(ggplot2, lib.loc = './Rlib')
+library(data.table, lib.loc = './Rlib')
 
 source('helpers/helpers.R')
 source('helpers/interactiveplots.R')
