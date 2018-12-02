@@ -10,7 +10,7 @@ gitpackages = c('DT',
              'tidyselect',
              'tidyverse')
 
-dir.create("./")
+dir.create("./", showWarnings = TRUE)
 
 b = !(packages %in% rownames(installed.packages(lib.loc = './Rlib')))
 
