@@ -1,11 +1,11 @@
-gitpackages = c('DT',
+packages = c('DT',
              'data.table',
              'dplyr',
              'readr',
              'ggplot2',
              'rlang',
              'crosstalk',
-             'htmlwidget',
+             'htmlwidgets',
              'tidyr',
              'tidyselect',
              'tidyverse')
