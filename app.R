@@ -11,6 +11,7 @@ ui <- fluidPage(
    sidebarLayout(
      sidebarPanel(
        fileInput('inputFile','DGE table'),
+       selectInput('inputFormat', label = 'Table format', choices = c('DEseq2','edgeR','others'), multiple = FALSE),
        tabsetPanel(
          tabPanel("Parameter",
            sliderInput('padj.thrs', 'Threshold for padj', value =0.05, min = 0, max = 1, step = 1/100),
@@ -44,15 +45,39 @@ tablecols.required = c('log2FoldChange','baseMean','pvalue','padj')
 
 server <- function(input, output, session) {
   
+  # numericInput('expr_col', label = 'baseMean', value = 2, min = 1),
+  # numericInput('lfc_col', label = 'log2FoldChange', value = 3, min = 1),
+  # numericInput('pvalue_col', label = 'pvalue', value = 6, min = 1),
+  # numericInput('padj_col', label = 'padj', value = 7, min = 1),
+  
   data_raw = eventReactive(input$inputFile, { 
     loadData(input$inputFile$datapath)
   })
   
+  table_cols.idx = eventReactive(input$inputFormat, {
+    print('Updating column index')
+    print(input$inputFormat)
+    cols_idx <- switch(input$inputFormat,
+                             'DEseq2' = format.deseq2(),
+                             'edgeR' = format.edger(),
+                             'others' = c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col))
+    print(cols_idx)
+    
+    updateNumericInput(session, inputId = 'expr_col', value = cols_idx[1])
+    updateNumericInput(session,inputId = 'lfc_col', value = cols_idx[2])
+    updateNumericInput(session,inputId = 'pvalue_col', value = cols_idx[3])
+    updateNumericInput(session,inputId = 'padj_col', value = cols_idx[4])
+    
+    return(cols_idx)
+  })
+  
+  observeEvent(input$inputFormat,{
+    table_cols.idx() 
+  })
+  
   data = reactive({
-      y = data_raw()
-      
-      idx.cols = c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col)
-      colnames(y)[c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col)] <- tablecols.required
+      y = data_raw()[,c(1,table_cols.idx())]
+      colnames(y) <- c('gene_id',tablecols.required)
       
       if(!is.null(input$ma_brush)){
         print("Using ma_brush to select")
@@ -76,6 +101,7 @@ server <- function(input, output, session) {
       y$sign = factor(as.factor(y$sign), levels = c('significant','not',NA));
       y
   })
+  
   
   output$preview <- renderTable({
     y = data_raw()[1:5,]
