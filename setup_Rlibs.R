@@ -1,4 +1,4 @@
-packages = c('DT',
+cran.packages = c('DT',
              'data.table',
              'dplyr',
              'readr',
@@ -12,13 +12,13 @@ packages = c('DT',
 
 dir.create("./", showWarnings = TRUE)
 
-b = !(packages %in% rownames(installed.packages(lib.loc = './Rlib')))
+b = !(cran.packages %in% rownames(installed.cran.packages(lib.loc = './Rlib')))
 
 if(all(!b))
-  stop('All packages installed already. Exit')
+  stop('All cran.packages installed already. Exit')
 
 
-for(p in packages[b]){
+for(p in cran.packages[b]){
   cat(">> Installing",p,' to ./Rlib\n')
-  install.packages(p, lib = './Rlib/')
+  install.cran.packages(p, lib = './Rlib/')
 }

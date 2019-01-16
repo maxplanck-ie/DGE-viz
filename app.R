@@ -6,6 +6,8 @@ library(data.table, lib.loc = './Rlib')
 source('helpers/helpers.R')
 source('helpers/interactiveplots.R')
 
+options(shiny.maxRequestSize=15*1024^2)
+
 ui <- fluidPage(
    titlePanel("Investigate your RNA-seq DGE data"),
    sidebarLayout(
@@ -77,6 +79,7 @@ server <- function(input, output, session) {
   
   data = reactive({
       y = data_raw()[,c(1,table_cols.idx())]
+      y = y[order(y$padj, decreasing = FALSE)[1:5e3],]
       colnames(y) <- c('gene_id',tablecols.required)
       
       if(!is.null(input$ma_brush)){
