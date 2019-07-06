@@ -39,7 +39,8 @@ ui <- fluidPage(
                 plotOutput("MAplot", brush = "ma_brush"),
                 plotOutput("volcanoPlot", brush = "volcano_brush")),
        tabPanel('Table - selected data', DT::dataTableOutput('outtab')),
-       tabPanel("Table - preview input", tableOutput('preview'))
+       tabPanel("Table - preview input", tableOutput('preview')),
+       tabPanel("Sessioninfo", verbatimTextOutput("sessionInfo"))
      )))
 )
 
@@ -51,6 +52,11 @@ server <- function(input, output, session) {
   # numericInput('lfc_col', label = 'log2FoldChange', value = 3, min = 1),
   # numericInput('pvalue_col', label = 'pvalue', value = 6, min = 1),
   # numericInput('padj_col', label = 'padj', value = 7, min = 1),
+  
+  output$sessionInfo <- renderText({
+    paste(capture.output(sessionInfo()),collapse = "\n")
+  })
+  
   
   data_raw = eventReactive(input$inputFile, { 
     loadData(input$inputFile$datapath)
