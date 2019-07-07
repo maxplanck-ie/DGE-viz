@@ -2,11 +2,14 @@ library(shiny) # should be provided by shiny server by default
 library(DT, lib.loc = './Rlib')
 library(ggplot2, lib.loc = './Rlib')
 library(data.table, lib.loc = './Rlib')
+library(janitor)
 
 source('helpers/helpers.R')
 source('helpers/interactiveplots.R')
 
 options(shiny.maxRequestSize=15*1024^2)
+
+tab.colnames = NULL
 
 ui <- fluidPage(
    titlePanel("Investigate your RNA-seq DGE data"),
@@ -21,15 +24,22 @@ ui <- fluidPage(
            sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0,max=log2(2**13),step=1/10,round=TRUE)
            # fileInput('annotationFile','Annotation GTF'),
          ),
+         # tabPanel("Columns",
+         #          h1("Warning:"),
+         #          p("Change options only if your table is not canonical DESeq2 format"),
+         #          numericInput('expr_col', label = 'baseMean', value = 2, min = 1),
+         #          numericInput('lfc_col', label = 'log2FoldChange', value = 3, min = 1),
+         #          numericInput('pvalue_col', label = 'pvalue', value = 6, min = 1),
+         #          numericInput('padj_col', label = 'padj', value = 7, min = 1),
+         #          actionButton('updateidx','Update')
+         #        )
          tabPanel("Columns",
-                  h1("Warning:"),
-                  p("Change options only if your table is not canonical DESeq2 format"),
-                  numericInput('expr_col', label = 'baseMean', value = 2, min = 1),
-                  numericInput('lfc_col', label = 'log2FoldChange', value = 3, min = 1),
-                  numericInput('pvalue_col', label = 'pvalue', value = 6, min = 1),
-                  numericInput('padj_col', label = 'padj', value = 7, min = 1),
-                  actionButton('updateidx','Update')
-                )
+                  selectInput('expr_col', label = 'baseMean', choices = tab.colnames),
+                  selectInput('lfc_col', label = 'log2FoldChange', choices = tab.colnames),
+                  selectInput('pvalue_col', label = 'pvalue', choices = tab.colnames),
+                  selectInput('padj_col', label = 'padj', choices = tab.colnames),
+                  actionButton('update_columns',label = "Update")
+         )
        ),
        verbatimTextOutput('errorOut', placeholder = TRUE)
    ),
@@ -48,67 +58,68 @@ tablecols.required = c('log2FoldChange','baseMean','pvalue','padj')
 
 server <- function(input, output, session) {
   
-  # numericInput('expr_col', label = 'baseMean', value = 2, min = 1),
-  # numericInput('lfc_col', label = 'log2FoldChange', value = 3, min = 1),
-  # numericInput('pvalue_col', label = 'pvalue', value = 6, min = 1),
-  # numericInput('padj_col', label = 'padj', value = 7, min = 1),
-  
   output$sessionInfo <- renderText({
     paste(capture.output(sessionInfo()),collapse = "\n")
   })
   
-  
   data_raw = eventReactive(input$inputFile, { 
-    loadData(input$inputFile$datapath)
+    tab = loadData(input$inputFile$datapath)
+    tab = clean_names(tab)
+    updateSelectInput(session, inputId = 'expr_col', choices = colnames(tab))
+    updateSelectInput(session,inputId = 'lfc_col', choices = colnames(tab))
+    updateSelectInput(session,inputId = 'pvalue_col', choices = colnames(tab))
+    updateSelectInput(session,inputId = 'padj_col', choices = colnames(tab))
+    
+    return(tab)
   })
   
-  table_cols.idx = eventReactive(input$inputFormat, {
-    print('Updating column index')
-    print(input$inputFormat)
-    cols_idx <- switch(input$inputFormat,
-                             'DEseq2' = format.deseq2(),
-                             'edgeR' = format.edger(),
-                             'others' = c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col))
-    print(cols_idx)
+  updateColumns <- eventReactive(c(input$inputFormat, input$update_columns),{
+    if(input$inputFormat == 'DEseq2')
+      return(format.deseq2())
     
-    updateNumericInput(session, inputId = 'expr_col', value = cols_idx[1])
-    updateNumericInput(session,inputId = 'lfc_col', value = cols_idx[2])
-    updateNumericInput(session,inputId = 'pvalue_col', value = cols_idx[3])
-    updateNumericInput(session,inputId = 'padj_col', value = cols_idx[4])
+    if(input$inputFormat == 'edgeR')
+      return(format.edger())
     
-    return(cols_idx)
+    if(input$update_columns){
+      print(input$lfc_col)
+      cols_idx = sapply(c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col),
+                        function(x, ref) which(x == ref), colnames(data_raw()))
+      print("others - selected columns")
+      print(colnames(data_raw())[cols_idx])
+      return(cols_idx)
+    }
   })
-  
-  observeEvent(input$inputFormat,{
-    table_cols.idx() 
+
+  rows_selected = reactive({
+    NULL
   })
   
   data = reactive({
-      y = data_raw()[,c(1,table_cols.idx())]
-      y = y[order(y$padj, decreasing = FALSE)[1:5e3],]
-      colnames(y) <- c('gene_id',tablecols.required)
-      
-      if(!is.null(input$ma_brush)){
-        print("Using ma_brush to select")
-        update.vals = ma_brush(input$ma_brush)
-        y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
-                          2**update.vals$expr[1] < y$baseMean & y$baseMean < 2**update.vals$expr[2],
-                        'significant','not');
-      } else if(!is.null(input$volcano_brush)) {
-        print("Using volcano_brush to select")
-        update.vals = volcano_brush(input$volcano_brush)
-        y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
-                          update.vals$pval[1] < -log10(y$pvalue) & -log10(y$pvalue) < update.vals$pval[2],
-                        'significant','not');
-      } else {
-        print("Using sliders to select")
-        y$sign = ifelse(y$padj < input$padj.thrs & 
-                          ( y$log2FoldChange < input$logfc.thrs[1] | y$log2FoldChange > input$logfc.thrs[2]) &
-                          (2**input$expr.thrs[1] <= y$baseMean & y$baseMean <= 2**input$expr.thrs[2] ),
-                        'significant','not');
-      }
-      y$sign = factor(as.factor(y$sign), levels = c('significant','not',NA));
-      y
+    y = data_raw()[,c(1,updateColumns())]
+    colnames(y) <- c('gene_id', tablecols.required)
+    y = y[order(y$padj, decreasing = FALSE)[1:5e3],]
+    
+    if(!is.null(input$ma_brush)){
+      print("Using ma_brush to select")
+      update.vals = ma_brush(input$ma_brush)
+      y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
+                        2**update.vals$expr[1] < y$baseMean & y$baseMean < 2**update.vals$expr[2],
+                      'significant','not');
+    } else if(!is.null(input$volcano_brush)) {
+      print("Using volcano_brush to select")
+      update.vals = volcano_brush(input$volcano_brush)
+      y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
+                        update.vals$pval[1] < -log10(y$pvalue) & -log10(y$pvalue) < update.vals$pval[2],
+                      'significant','not');
+    } else {
+      print("Using sliders to select")
+      y$sign = ifelse(y$padj < input$padj.thrs &
+                        ( y$log2FoldChange < input$logfc.thrs[1] | y$log2FoldChange > input$logfc.thrs[2]) &
+                        (2**input$expr.thrs[1] <= y$baseMean & y$baseMean <= 2**input$expr.thrs[2] ),
+                      'significant','not');
+    }
+    y$sign = factor(as.factor(y$sign), levels = c('significant','not',NA));
+    y
   })
   
   
