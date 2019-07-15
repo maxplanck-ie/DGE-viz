@@ -61,6 +61,7 @@ server <- function(input, output, session) {
     updateSelectInput(session,inputId = 'lfc_col', choices = colnames(tab))
     updateSelectInput(session,inputId = 'pvalue_col', choices = colnames(tab))
     updateSelectInput(session,inputId = 'padj_col', choices = colnames(tab))
+    tab$id = paste0('id',nrow(tab))
     
     return(tab)
   })
@@ -86,15 +87,15 @@ server <- function(input, output, session) {
   })
   
   data = reactive({
-    y = data_raw()[,c(1,updateColumns())]
-    colnames(y) <- c('gene_id', tablecols.required)
-    y = y[order(y$padj, decreasing = FALSE)[1:5e3],]
+    y = data_raw()
+    y =y[,c(1,updateColumns(),grep('id',colnames(y)))]
+    colnames(y) <- c('gene_id', tablecols.required, 'id')
     
     if(!is.null(input$ma_brush)){
       print("Using ma_brush to select")
       update.vals = ma_brush(input$ma_brush)
       y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
-                        2**update.vals$expr[1] < y$baseMean & y$baseMean < 2**update.vals$expr[2],
+                        update.vals$expr[1] < y$baseMean & y$baseMean < update.vals$expr[2],
                       'selected','not');
     } else if(!is.null(input$volcano_brush)) {
       print("Using volcano_brush to select")
@@ -110,15 +111,14 @@ server <- function(input, output, session) {
                       'selected','not');
     }
     y$selected = factor(as.factor(y$selected), levels = c('selected','not',NA));
-    print(head(y))
     y
   })
   
   output$outtab <- renderDT({ 
-    x = subset(data(), selected == 'selected');
-    x = x[,!(colnames(x) %in% 'selected')]
+    id.selected = subset(data(), selected == 'selected')$id
+    x = subset(data_raw(), id %in% id.selected);
+    x = x[,!(colnames(x) %in% c('selected','id'))]
     x.num = sapply(x, class) == class(numeric())
-    
     formatRound(
       DT::datatable(x,
                     rownames = FALSE,
@@ -141,7 +141,7 @@ server <- function(input, output, session) {
   
   
   output$preview <- renderTable({
-    y = data_raw()[1:5,]
+    y = data_raw()[1:5,setdiff(colnames(data_raw(), 'id'))]
     y.num = sapply(y, is.numeric)
     y[y.num] = apply(y[y.num],2, round, 2)
     head(as.data.frame(y))
