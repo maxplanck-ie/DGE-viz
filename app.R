@@ -141,7 +141,6 @@ server <- function(input, output, session) {
   
   
   output$preview <- renderTable({
-    print('Paste preview')
     y = data_raw()[1:5,setdiff(colnames(data_raw()), 'id')]
     y.num = sapply(y, is.numeric)
     y[y.num] = apply(y[y.num],2, round, 2)
