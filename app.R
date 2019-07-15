@@ -28,7 +28,7 @@ ui <- fluidPage(
                   selectInput('expr_col', label = 'baseMean', choices = tab.colnames),
                   checkboxInput('logTransform.expr','do log10', value = TRUE),
                   selectInput('lfc_col', label = 'log2FoldChange', choices = tab.colnames),
-                  checkboxInput('logTransform.foldchange','do log10', value = TRUE),
+                  checkboxInput('logTransform.foldchange','do log10', value = FALSE),
                   selectInput('pvalue_col', label = 'pvalue', choices = tab.colnames),
                   checkboxInput('logTransform.pvalue','do -log10', value = TRUE),
                   selectInput('padj_col', label = 'padj', choices = tab.colnames),
@@ -91,8 +91,18 @@ server <- function(input, output, session) {
   
   data = reactive({
     y = data_raw()
-    y =y[,c(1,updateColumns(),grep('id',colnames(y)))]
+    y = y[,c(1,updateColumns(),grep('id',colnames(y)))]
     colnames(y) <- c('gene_id', tablecols.required, 'id')
+    y.copy = y
+    
+    if(input$logTransform.foldchange)
+      y[,tablecols.required[1]] = log10(y[,tablecols.required[1]])
+    if(input$logTransform.expr)
+      y[,tablecols.required[2]] = log10(y[,tablecols.required[2]])
+    if(input$logTransform.pvalue)
+      y[,tablecols.required[3]] = -log10(y[,tablecols.required[3]])
+    if(input$logTransform.padj)
+      y[,tablecols.required[4]] = -log10(y[,tablecols.required[4]])
     
     if(!is.null(input$ma_brush)){
       print("Using ma_brush to select")
@@ -103,23 +113,16 @@ server <- function(input, output, session) {
     } else if(!is.null(input$volcano_brush)) {
       print("Using volcano_brush to select")
       update.vals = volcano_brush(input$volcano_brush)
-      
-      if(input$logTransform.pvalue){
-        y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
-                              update.vals$pval[1] < -log10(y$pvalue) & -log10(y$pvalue) < update.vals$pval[2],
-                            'selected','not')
-      } else {
-        y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
-                              update.vals$pval[1] < y$pvalue & y$pvalue < update.vals$pval[2],
-                            'selected','not')
-      }
+      y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
+                            update.vals$pval[1] < y$pvalue & y$pvalue < update.vals$pval[2],
+                          'selected','not')
 
     } else {
       print("Using sliders to select")
-      y$selected = ifelse(y$padj < input$padj.thrs &
-                        ( y$log2FoldChange < input$logfc.thrs[1] | y$log2FoldChange > input$logfc.thrs[2]) &
-                        (input$expr.thrs[1] <= y$baseMean & y$baseMean <= input$expr.thrs[2] ),
-                      'selected','not');
+      y$selected = ifelse(y.copy$padj < input$padj.thrs &
+                            (y$log2FoldChange < input$logfc.thrs[1] | y$log2FoldChange > input$logfc.thrs[2]) &
+                            (input$expr.thrs[1] <= y$baseMean & y$baseMean <= input$expr.thrs[2] ),
+                          'selected','not');
     }
     y$selected = factor(as.factor(y$selected), levels = c('selected','not',NA));
     y
@@ -144,12 +147,6 @@ server <- function(input, output, session) {
                     )),
       which(x.num), digits = 2)
   }, server=FALSE)
-  # output$errorOut <- renderText({
-  #   b1 = tablecols.required %in% colnames(data_raw())
-  #   if(!all(b1))
-  #     return(paste("Columns not found:\n", paste(tablecols.required[!b1], sep = '\n')))
-  # })
-  
   
   output$preview <- renderTable({
     y = data_raw()[1:5,setdiff(colnames(data_raw()), 'id')]
@@ -161,29 +158,18 @@ server <- function(input, output, session) {
   output$MAplot <- renderPlot({
     print("Update MA plot")
     dat = data()
-    gg0 = ggplot(dat, aes(baseMean, log2FoldChange)) + geom_point(aes(color = selected)) +
+    ggplot(dat, aes(baseMean, log2FoldChange)) + geom_point(aes(color = selected)) +
       geom_hline(yintercept = c(input$logfc.thrs), col = 'darkgrey', lty = 2) + 
       geom_vline(xintercept = c(input$expr.thrs), col = 'darkgrey', lty = 2) +
       theme_light()
-    if(input$logTransform.expr){
-      print("MA plot - log10")
-      gg0 = gg0 + scale_x_log10()
-    }
-    gg0
   })
   
   output$volcanoPlot <- renderPlot({
     print("Update Volcano plot")
     dat = data()
-    if(input$logTransform.pvalue)
-      dat$pvalue = -log10(dat$pvalue)
-    
-    if(input$logTransform.padj)
-      dat$pvalue = -log10(dat$padj)
-    
     ggplot(dat, aes(log2FoldChange, pvalue)) + geom_point(aes(color = selected)) +
       geom_vline(xintercept = c(input$logfc.thrs), col = 'darkgrey', lty= 2) + 
-      geom_hline(yintercept = min(-log10(dat$pvalue[dat$padj < input$padj.thrs]), na.rm = TRUE), col = 'darkgrey') + 
+      geom_hline(yintercept = min(dat$pvalue[dat$padj < input$padj.thrs], na.rm = TRUE), col = 'darkgrey') + 
       theme_light()
   })
   
