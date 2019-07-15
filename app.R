@@ -24,17 +24,9 @@ ui <- fluidPage(
            sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0,max=log2(2**13),step=1/10,round=TRUE)
            # fileInput('annotationFile','Annotation GTF'),
          ),
-         # tabPanel("Columns",
-         #          h1("Warning:"),
-         #          p("Change options only if your table is not canonical DESeq2 format"),
-         #          numericInput('expr_col', label = 'baseMean', value = 2, min = 1),
-         #          numericInput('lfc_col', label = 'log2FoldChange', value = 3, min = 1),
-         #          numericInput('pvalue_col', label = 'pvalue', value = 6, min = 1),
-         #          numericInput('padj_col', label = 'padj', value = 7, min = 1),
-         #          actionButton('updateidx','Update')
-         #        )
          tabPanel("Columns",
                   selectInput('expr_col', label = 'baseMean', choices = tab.colnames),
+                  checkboxInput('logTransform','do log10', value = TRUE),
                   selectInput('lfc_col', label = 'log2FoldChange', choices = tab.colnames),
                   selectInput('pvalue_col', label = 'pvalue', choices = tab.colnames),
                   selectInput('padj_col', label = 'padj', choices = tab.colnames),
@@ -81,7 +73,6 @@ server <- function(input, output, session) {
       return(format.edger())
     
     if(input$update_columns){
-      print(input$lfc_col)
       cols_idx = sapply(c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col),
                         function(x, ref) which(x == ref), colnames(data_raw()))
       print("others - selected columns")
@@ -102,55 +93,30 @@ server <- function(input, output, session) {
     if(!is.null(input$ma_brush)){
       print("Using ma_brush to select")
       update.vals = ma_brush(input$ma_brush)
-      y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
+      y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
                         2**update.vals$expr[1] < y$baseMean & y$baseMean < 2**update.vals$expr[2],
-                      'significant','not');
+                      'selected','not');
     } else if(!is.null(input$volcano_brush)) {
       print("Using volcano_brush to select")
       update.vals = volcano_brush(input$volcano_brush)
-      y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
+      y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
                         update.vals$pval[1] < -log10(y$pvalue) & -log10(y$pvalue) < update.vals$pval[2],
-                      'significant','not');
+                      'selected','not');
     } else {
       print("Using sliders to select")
-      y$sign = ifelse(y$padj < input$padj.thrs &
+      y$selected = ifelse(y$padj < input$padj.thrs &
                         ( y$log2FoldChange < input$logfc.thrs[1] | y$log2FoldChange > input$logfc.thrs[2]) &
                         (2**input$expr.thrs[1] <= y$baseMean & y$baseMean <= 2**input$expr.thrs[2] ),
-                      'significant','not');
+                      'selected','not');
     }
-    y$sign = factor(as.factor(y$sign), levels = c('significant','not',NA));
+    y$selected = factor(as.factor(y$selected), levels = c('selected','not',NA));
+    print(head(y))
     y
   })
   
-  
-  output$preview <- renderTable({
-    y = data_raw()[1:5,]
-    y.num = sapply(y, is.numeric)
-    y[y.num] = apply(y[y.num],2, round, 2)
-    head(as.data.frame(y))
-  })
-  
-  output$MAplot <- renderPlot({
-    print("Update MA plot")
-    dat = data()
-    ggplot(dat, aes(log2(baseMean), log2FoldChange)) + geom_point(aes(color = sign)) +
-      geom_hline(yintercept = c(input$logfc.thrs), col = 'darkgrey', lty = 2) + 
-      geom_vline(xintercept = c(input$expr.thrs), col = 'darkgrey', lty = 2) +
-      theme_light()
-  })
-  
-  output$volcanoPlot <- renderPlot({
-    print("Update Volcano plot")
-    dat = data()
-    ggplot(dat, aes(log2FoldChange, -log10(pvalue))) + geom_point(aes(color = sign)) +
-      geom_vline(xintercept = c(input$logfc.thrs), col = 'darkgrey', lty= 2) + 
-      geom_hline(yintercept = min(-log10(dat$pvalue[dat$padj < input$padj.thrs]), na.rm = TRUE), col = 'darkgrey') + 
-      theme_light()
-  })
-  
   output$outtab <- renderDT({ 
-    x = subset(data(), sign == 'significant');
-    x = x[,!(colnames(x) %in% 'sign')]
+    x = subset(data(), selected == 'selected');
+    x = x[,!(colnames(x) %in% 'selected')]
     x.num = sapply(x, class) == class(numeric())
     
     formatRound(
@@ -165,13 +131,45 @@ server <- function(input, output, session) {
                                        text = 'Download'
                                      ))
                     )),
-                which(x.num), digits = 2)
-    }, server=FALSE)
+      which(x.num), digits = 2)
+  }, server=FALSE)
   output$errorOut <- renderText({
     b1 = tablecols.required %in% colnames(data_raw())
     if(!all(b1))
       return(paste("Columns not found:\n", paste(tablecols.required[!b1], sep = '\n')))
   })
+  
+  
+  output$preview <- renderTable({
+    y = data_raw()[1:5,]
+    y.num = sapply(y, is.numeric)
+    y[y.num] = apply(y[y.num],2, round, 2)
+    head(as.data.frame(y))
+  })
+  
+  output$MAplot <- renderPlot({
+    print("Update MA plot")
+    dat = data()
+    gg0 = ggplot(dat, aes(baseMean, log2FoldChange)) + geom_point(aes(color = selected)) +
+      geom_hline(yintercept = c(input$logfc.thrs), col = 'darkgrey', lty = 2) + 
+      geom_vline(xintercept = c(input$expr.thrs), col = 'darkgrey', lty = 2) +
+      theme_light()
+    if(input$logTransform){
+      print("MA plot - log10")
+      gg0 = gg0 + scale_x_log10()
+    }
+    gg0
+  })
+  
+  output$volcanoPlot <- renderPlot({
+    print("Update Volcano plot")
+    dat = data()
+    ggplot(dat, aes(log2FoldChange, -log10(pvalue))) + geom_point(aes(color = selected)) +
+      geom_vline(xintercept = c(input$logfc.thrs), col = 'darkgrey', lty= 2) + 
+      geom_hline(yintercept = min(-log10(dat$pvalue[dat$padj < input$padj.thrs]), na.rm = TRUE), col = 'darkgrey') + 
+      theme_light()
+  })
+  
 }
 
 # Run the application
