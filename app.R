@@ -2,15 +2,21 @@ library(shiny) # should be provided by shiny server by default
 library(DT, lib.loc = './Rlib')
 library(ggplot2, lib.loc = './Rlib')
 library(data.table, lib.loc = './Rlib')
+library(janitor)
 
 source('helpers/helpers.R')
 source('helpers/interactiveplots.R')
+
+options(shiny.maxRequestSize=15*1024^2)
+
+tab.colnames = NULL
 
 ui <- fluidPage(
    titlePanel("Investigate your RNA-seq DGE data"),
    sidebarLayout(
      sidebarPanel(
        fileInput('inputFile','DGE table'),
+       selectInput('inputFormat', label = 'Table format', choices = c('DEseq2','edgeR','others'), multiple = FALSE),
        tabsetPanel(
          tabPanel("Parameter",
            sliderInput('padj.thrs', 'Threshold for padj', value =0.05, min = 0, max = 1, step = 1/100),
@@ -19,14 +25,13 @@ ui <- fluidPage(
            # fileInput('annotationFile','Annotation GTF'),
          ),
          tabPanel("Columns",
-                  h1("Warning:"),
-                  p("Change options only if your table is not canonical DESeq2 format"),
-                  numericInput('expr_col', label = 'baseMean', value = 2, min = 1),
-                  numericInput('lfc_col', label = 'log2FoldChange', value = 3, min = 1),
-                  numericInput('pvalue_col', label = 'pvalue', value = 6, min = 1),
-                  numericInput('padj_col', label = 'padj', value = 7, min = 1),
-                  actionButton('updateidx','Update')
-                )
+                  selectInput('expr_col', label = 'baseMean', choices = tab.colnames),
+                  checkboxInput('logTransform','do log10', value = TRUE),
+                  selectInput('lfc_col', label = 'log2FoldChange', choices = tab.colnames),
+                  selectInput('pvalue_col', label = 'pvalue', choices = tab.colnames),
+                  selectInput('padj_col', label = 'padj', choices = tab.colnames),
+                  actionButton('update_columns',label = "Update")
+         )
        ),
        verbatimTextOutput('errorOut', placeholder = TRUE)
    ),
@@ -36,7 +41,8 @@ ui <- fluidPage(
                 plotOutput("MAplot", brush = "ma_brush"),
                 plotOutput("volcanoPlot", brush = "volcano_brush")),
        tabPanel('Table - selected data', DT::dataTableOutput('outtab')),
-       tabPanel("Table - preview input", tableOutput('preview'))
+       tabPanel("Table - preview input", tableOutput('preview')),
+       tabPanel("Sessioninfo", verbatimTextOutput("sessionInfo"))
      )))
 )
 
@@ -44,67 +50,73 @@ tablecols.required = c('log2FoldChange','baseMean','pvalue','padj')
 
 server <- function(input, output, session) {
   
+  output$sessionInfo <- renderText({
+    paste(capture.output(sessionInfo()),collapse = "\n")
+  })
+  
   data_raw = eventReactive(input$inputFile, { 
-    loadData(input$inputFile$datapath)
+    tab = loadData(input$inputFile$datapath)
+    tab = clean_names(tab)
+    updateSelectInput(session, inputId = 'expr_col', choices = colnames(tab))
+    updateSelectInput(session,inputId = 'lfc_col', choices = colnames(tab))
+    updateSelectInput(session,inputId = 'pvalue_col', choices = colnames(tab))
+    updateSelectInput(session,inputId = 'padj_col', choices = colnames(tab))
+    
+    return(tab)
+  })
+  
+  updateColumns <- eventReactive(c(input$inputFormat, input$update_columns),{
+    if(input$inputFormat == 'DEseq2')
+      return(format.deseq2())
+    
+    if(input$inputFormat == 'edgeR')
+      return(format.edger())
+    
+    if(input$update_columns){
+      cols_idx = sapply(c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col),
+                        function(x, ref) which(x == ref), colnames(data_raw()))
+      print("others - selected columns")
+      print(colnames(data_raw())[cols_idx])
+      return(cols_idx)
+    }
+  })
+
+  rows_selected = reactive({
+    NULL
   })
   
   data = reactive({
-      y = data_raw()
-      
-      idx.cols = c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col)
-      colnames(y)[c(input$lfc_col,input$expr_col,input$pvalue_col,input$padj_col)] <- tablecols.required
-      
-      if(!is.null(input$ma_brush)){
-        print("Using ma_brush to select")
-        update.vals = ma_brush(input$ma_brush)
-        y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
-                          2**update.vals$expr[1] < y$baseMean & y$baseMean < 2**update.vals$expr[2],
-                        'significant','not');
-      } else if(!is.null(input$volcano_brush)) {
-        print("Using volcano_brush to select")
-        update.vals = volcano_brush(input$volcano_brush)
-        y$sign = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
-                          update.vals$pval[1] < -log10(y$pvalue) & -log10(y$pvalue) < update.vals$pval[2],
-                        'significant','not');
-      } else {
-        print("Using sliders to select")
-        y$sign = ifelse(y$padj < input$padj.thrs & 
-                          ( y$log2FoldChange < input$logfc.thrs[1] | y$log2FoldChange > input$logfc.thrs[2]) &
-                          (2**input$expr.thrs[1] <= y$baseMean & y$baseMean <= 2**input$expr.thrs[2] ),
-                        'significant','not');
-      }
-      y$sign = factor(as.factor(y$sign), levels = c('significant','not',NA));
-      y
-  })
-  
-  output$preview <- renderTable({
-    y = data_raw()[1:5,]
-    y.num = sapply(y, is.numeric)
-    y[y.num] = apply(y[y.num],2, round, 2)
-    head(as.data.frame(y))
-  })
-  
-  output$MAplot <- renderPlot({
-    print("Update MA plot")
-    dat = data()
-    ggplot(dat, aes(log2(baseMean), log2FoldChange)) + geom_point(aes(color = sign)) +
-      geom_hline(yintercept = c(input$logfc.thrs), col = 'darkgrey', lty = 2) + 
-      geom_vline(xintercept = c(input$expr.thrs), col = 'darkgrey', lty = 2) +
-      theme_light()
-  })
-  
-  output$volcanoPlot <- renderPlot({
-    print("Update Volcano plot")
-    dat = data()
-    ggplot(dat, aes(log2FoldChange, -log10(pvalue))) + geom_point(aes(color = sign)) +
-      geom_vline(xintercept = c(input$logfc.thrs), col = 'darkgrey', lty= 2) + 
-      geom_hline(yintercept = min(-log10(dat$pvalue[dat$padj < input$padj.thrs]), na.rm = TRUE), col = 'darkgrey') + 
-      theme_light()
+    y = data_raw()[,c(1,updateColumns())]
+    colnames(y) <- c('gene_id', tablecols.required)
+    y = y[order(y$padj, decreasing = FALSE)[1:5e3],]
+    
+    if(!is.null(input$ma_brush)){
+      print("Using ma_brush to select")
+      update.vals = ma_brush(input$ma_brush)
+      y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
+                        2**update.vals$expr[1] < y$baseMean & y$baseMean < 2**update.vals$expr[2],
+                      'selected','not');
+    } else if(!is.null(input$volcano_brush)) {
+      print("Using volcano_brush to select")
+      update.vals = volcano_brush(input$volcano_brush)
+      y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
+                        update.vals$pval[1] < -log10(y$pvalue) & -log10(y$pvalue) < update.vals$pval[2],
+                      'selected','not');
+    } else {
+      print("Using sliders to select")
+      y$selected = ifelse(y$padj < input$padj.thrs &
+                        ( y$log2FoldChange < input$logfc.thrs[1] | y$log2FoldChange > input$logfc.thrs[2]) &
+                        (2**input$expr.thrs[1] <= y$baseMean & y$baseMean <= 2**input$expr.thrs[2] ),
+                      'selected','not');
+    }
+    y$selected = factor(as.factor(y$selected), levels = c('selected','not',NA));
+    print(head(y))
+    y
   })
   
   output$outtab <- renderDT({ 
-    x = subset(data(), sign == 'significant');
-    x = x[,!(colnames(x) %in% 'sign')]
+    x = subset(data(), selected == 'selected');
+    x = x[,!(colnames(x) %in% 'selected')]
     x.num = sapply(x, class) == class(numeric())
     
     formatRound(
@@ -119,13 +131,45 @@ server <- function(input, output, session) {
                                        text = 'Download'
                                      ))
                     )),
-                which(x.num), digits = 2)
-    }, server=FALSE)
+      which(x.num), digits = 2)
+  }, server=FALSE)
   output$errorOut <- renderText({
     b1 = tablecols.required %in% colnames(data_raw())
     if(!all(b1))
       return(paste("Columns not found:\n", paste(tablecols.required[!b1], sep = '\n')))
   })
+  
+  
+  output$preview <- renderTable({
+    y = data_raw()[1:5,]
+    y.num = sapply(y, is.numeric)
+    y[y.num] = apply(y[y.num],2, round, 2)
+    head(as.data.frame(y))
+  })
+  
+  output$MAplot <- renderPlot({
+    print("Update MA plot")
+    dat = data()
+    gg0 = ggplot(dat, aes(baseMean, log2FoldChange)) + geom_point(aes(color = selected)) +
+      geom_hline(yintercept = c(input$logfc.thrs), col = 'darkgrey', lty = 2) + 
+      geom_vline(xintercept = c(input$expr.thrs), col = 'darkgrey', lty = 2) +
+      theme_light()
+    if(input$logTransform){
+      print("MA plot - log10")
+      gg0 = gg0 + scale_x_log10()
+    }
+    gg0
+  })
+  
+  output$volcanoPlot <- renderPlot({
+    print("Update Volcano plot")
+    dat = data()
+    ggplot(dat, aes(log2FoldChange, -log10(pvalue))) + geom_point(aes(color = selected)) +
+      geom_vline(xintercept = c(input$logfc.thrs), col = 'darkgrey', lty= 2) + 
+      geom_hline(yintercept = min(-log10(dat$pvalue[dat$padj < input$padj.thrs]), na.rm = TRUE), col = 'darkgrey') + 
+      theme_light()
+  })
+  
 }
 
 # Run the application
