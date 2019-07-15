@@ -133,15 +133,16 @@ server <- function(input, output, session) {
                     )),
       which(x.num), digits = 2)
   }, server=FALSE)
-  output$errorOut <- renderText({
-    b1 = tablecols.required %in% colnames(data_raw())
-    if(!all(b1))
-      return(paste("Columns not found:\n", paste(tablecols.required[!b1], sep = '\n')))
-  })
+  # output$errorOut <- renderText({
+  #   b1 = tablecols.required %in% colnames(data_raw())
+  #   if(!all(b1))
+  #     return(paste("Columns not found:\n", paste(tablecols.required[!b1], sep = '\n')))
+  # })
   
   
   output$preview <- renderTable({
-    y = data_raw()[1:5,setdiff(colnames(data_raw(), 'id'))]
+    print('Paste preview')
+    y = data_raw()[1:5,setdiff(colnames(data_raw()), 'id')]
     y.num = sapply(y, is.numeric)
     y[y.num] = apply(y[y.num],2, round, 2)
     head(as.data.frame(y))
