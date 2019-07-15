@@ -26,10 +26,13 @@ ui <- fluidPage(
          ),
          tabPanel("Columns",
                   selectInput('expr_col', label = 'baseMean', choices = tab.colnames),
-                  checkboxInput('logTransform','do log10', value = TRUE),
+                  checkboxInput('logTransform.expr','do log10', value = TRUE),
                   selectInput('lfc_col', label = 'log2FoldChange', choices = tab.colnames),
+                  checkboxInput('logTransform.foldchange','do log10', value = TRUE),
                   selectInput('pvalue_col', label = 'pvalue', choices = tab.colnames),
+                  checkboxInput('logTransform.pvalue','do -log10', value = TRUE),
                   selectInput('padj_col', label = 'padj', choices = tab.colnames),
+                  checkboxInput('logTransform.padj','do -log10', value = TRUE),
                   actionButton('update_columns',label = "Update")
          )
        ),
@@ -94,19 +97,27 @@ server <- function(input, output, session) {
       print("Using ma_brush to select")
       update.vals = ma_brush(input$ma_brush)
       y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
-                        2**update.vals$expr[1] < y$baseMean & y$baseMean < 2**update.vals$expr[2],
+                        update.vals$expr[1] < y$baseMean & y$baseMean < update.vals$expr[2],
                       'selected','not');
     } else if(!is.null(input$volcano_brush)) {
       print("Using volcano_brush to select")
       update.vals = volcano_brush(input$volcano_brush)
-      y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
-                        update.vals$pval[1] < -log10(y$pvalue) & -log10(y$pvalue) < update.vals$pval[2],
-                      'selected','not');
+      
+      if(input$logTransform.pvalue){
+        y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
+                              update.vals$pval[1] < -log10(y$pvalue) & -log10(y$pvalue) < update.vals$pval[2],
+                            'selected','not')
+      } else {
+        y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
+                              update.vals$pval[1] < y$pvalue & y$pvalue < update.vals$pval[2],
+                            'selected','not')
+      }
+
     } else {
       print("Using sliders to select")
       y$selected = ifelse(y$padj < input$padj.thrs &
                         ( y$log2FoldChange < input$logfc.thrs[1] | y$log2FoldChange > input$logfc.thrs[2]) &
-                        (2**input$expr.thrs[1] <= y$baseMean & y$baseMean <= 2**input$expr.thrs[2] ),
+                        (input$expr.thrs[1] <= y$baseMean & y$baseMean <= input$expr.thrs[2] ),
                       'selected','not');
     }
     y$selected = factor(as.factor(y$selected), levels = c('selected','not',NA));
@@ -154,7 +165,7 @@ server <- function(input, output, session) {
       geom_hline(yintercept = c(input$logfc.thrs), col = 'darkgrey', lty = 2) + 
       geom_vline(xintercept = c(input$expr.thrs), col = 'darkgrey', lty = 2) +
       theme_light()
-    if(input$logTransform){
+    if(input$logTransform.expr){
       print("MA plot - log10")
       gg0 = gg0 + scale_x_log10()
     }
@@ -164,7 +175,13 @@ server <- function(input, output, session) {
   output$volcanoPlot <- renderPlot({
     print("Update Volcano plot")
     dat = data()
-    ggplot(dat, aes(log2FoldChange, -log10(pvalue))) + geom_point(aes(color = selected)) +
+    if(input$logTransform.pvalue)
+      dat$pvalue = -log10(dat$pvalue)
+    
+    if(input$logTransform.padj)
+      dat$pvalue = -log10(dat$padj)
+    
+    ggplot(dat, aes(log2FoldChange, pvalue)) + geom_point(aes(color = selected)) +
       geom_vline(xintercept = c(input$logfc.thrs), col = 'darkgrey', lty= 2) + 
       geom_hline(yintercept = min(-log10(dat$pvalue[dat$padj < input$padj.thrs]), na.rm = TRUE), col = 'darkgrey') + 
       theme_light()
