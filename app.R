@@ -59,7 +59,7 @@ server <- function(input, output, session) {
   
   data_raw = eventReactive(input$inputFile, { 
     tab = loadData(input$inputFile$datapath)
-    tab = clean_names(tab)
+    # tab = clean_names(tab)
     updateSelectInput(session, inputId = 'expr_col', choices = colnames(tab))
     updateSelectInput(session,inputId = 'lfc_col', choices = colnames(tab))
     updateSelectInput(session,inputId = 'pvalue_col', choices = colnames(tab))
