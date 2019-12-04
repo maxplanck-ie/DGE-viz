@@ -8,7 +8,7 @@ cran.packages = c('DT',
              'htmlwidgets',
              'tidyr',
              'tidyselect',
-             'tidyverse')
+             'janitor')
 
 dir.create("./", showWarnings = TRUE)
 
