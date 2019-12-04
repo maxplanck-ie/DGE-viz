@@ -61,12 +61,11 @@ server <- function(input, output, session) {
     tab = loadData(input$inputFile$datapath)
     tab = clean_names(tab)
     updateSelectInput(session, inputId = 'expr_col', choices = colnames(tab))
-    updateSelectInput(session,inputId = 'lfc_col', choices = colnames(tab))
-    updateSelectInput(session,inputId = 'pvalue_col', choices = colnames(tab))
-    updateSelectInput(session,inputId = 'padj_col', choices = colnames(tab))
-    tab$id = paste0('id',nrow(tab))
+    updateSelectInput(session, inputId = 'lfc_col', choices = colnames(tab))
+    updateSelectInput(session, inputId = 'pvalue_col', choices = colnames(tab))
+    updateSelectInput(session, inputId = 'padj_col', choices = colnames(tab))
+    tab$id = paste0('id', 1:nrow(tab))
     tab = tab[order(tab$padj,decreasing = FALSE)[1:10e3], ]
-    
     return(tab)
   })
   
@@ -86,12 +85,9 @@ server <- function(input, output, session) {
     }
   })
 
-  rows_selected = reactive({
-    NULL
-  })
-  
   data = reactive({
     y = data_raw()
+    y.copy = y
     y = y[,c(1,updateColumns(),grep('id',colnames(y)))]
     colnames(y) <- c('gene_id', tablecols.required, 'id')
     y.copy = y
@@ -130,8 +126,9 @@ server <- function(input, output, session) {
   })
   
   output$outtab <- renderDT({ 
-    x = subset(data(), selected == 'selected')
-    x = x[,!(colnames(x) %in% c('selected', 'id'))]
+    x = data_raw()
+    uid = subset(data(), selected == 'selected')$id
+    x = subset(x, id %in% uid)
     x.num = sapply(x, class) == class(numeric())
     formatRound(
       DT::datatable(x,
@@ -152,7 +149,6 @@ server <- function(input, output, session) {
     y = data_raw()[1:5,setdiff(colnames(data_raw()), 'id')]
     y.num = sapply(y, is.numeric)
     y[y.num] = apply(y[y.num],2, round, 2)
-    head(as.data.frame(y))
   })
   
   output$MAplot <- renderPlot({
@@ -172,7 +168,6 @@ server <- function(input, output, session) {
       geom_hline(yintercept = min(dat$pvalue[dat$padj < input$padj.thrs], na.rm = TRUE), col = 'darkgrey') + 
       theme_light()
   })
-  
 }
 
 # Run the application
