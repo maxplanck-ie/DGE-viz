@@ -59,17 +59,23 @@ server <- function(input, output, session) {
   
   data_raw = eventReactive(input$inputFile, { 
     tab = loadData(input$inputFile$datapath)
+    if(colnames(tab)[1] == 'V1')
+      colnames(tab)[1] = 'gene_id'
+    
     tab = clean_names(tab)
     updateSelectInput(session, inputId = 'expr_col', choices = colnames(tab))
     updateSelectInput(session, inputId = 'lfc_col', choices = colnames(tab))
     updateSelectInput(session, inputId = 'pvalue_col', choices = colnames(tab))
     updateSelectInput(session, inputId = 'padj_col', choices = colnames(tab))
     tab$id = paste0('id', 1:nrow(tab))
-    tab = tab[order(tab$padj,decreasing = FALSE)[1:10e3], ]
+    tab = subset(tab, !is.na(padj))
+    if(nrow(tab) > 10e3)
+      tab = tab[order(tab$padj,decreasing = FALSE)[1:10e3], ]
+    
     return(tab)
   })
   
-  updateColumns <- eventReactive(c(input$inputFormat, input$update_columns),{
+  updateColumns_index <- eventReactive(c(input$inputFormat, input$update_columns),{
     if(input$inputFormat == 'DEseq2')
       return(format.deseq2())
     
@@ -88,7 +94,7 @@ server <- function(input, output, session) {
   data = reactive({
     y = data_raw()
     y.copy = y
-    y = y[,c(1,updateColumns(),grep('id',colnames(y)))]
+    y = y[,c(1, updateColumns_index(), grep('^id$',colnames(y)))]
     colnames(y) <- c('gene_id', tablecols.required, 'id')
     y.copy = y
     
@@ -128,8 +134,9 @@ server <- function(input, output, session) {
   output$outtab <- renderDT({ 
     x = data_raw()
     uid = subset(data(), selected == 'selected')$id
-    x = subset(x, id %in% uid)
+    x = subset(x, id %in% uid)[setdiff(colnames(x), 'id')]
     x.num = sapply(x, class) == class(numeric())
+    
     formatRound(
       DT::datatable(x,
                     rownames = FALSE,
@@ -142,13 +149,15 @@ server <- function(input, output, session) {
                                        text = 'Download'
                                      ))
                     )),
-      which(x.num), digits = 2)
+      which(x.num), digits = 4)
   }, server=FALSE)
   
   output$preview <- renderTable({
-    y = data_raw()[1:5,setdiff(colnames(data_raw()), 'id')]
+    y = data_raw()[1:5,]
+    y = y[,setdiff(colnames(y),'id')]
     y.num = sapply(y, is.numeric)
-    y[y.num] = apply(y[y.num],2, round, 2)
+    y[,y.num] = apply(y[,y.num],2, round, 4)
+    return(y)
   })
   
   output$MAplot <- renderPlot({
