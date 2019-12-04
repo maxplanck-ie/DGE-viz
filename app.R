@@ -65,7 +65,8 @@ server <- function(input, output, session) {
     updateSelectInput(session,inputId = 'pvalue_col', choices = colnames(tab))
     updateSelectInput(session,inputId = 'padj_col', choices = colnames(tab))
     tab$id = paste0('id',nrow(tab))
-    tab = tab[order(tab$padj)[1:10e3], ]
+    tab = tab[order(tab$padj,decreasing = FALSE)[1:10e3], ]
+    
     return(tab)
   })
   
@@ -129,9 +130,8 @@ server <- function(input, output, session) {
   })
   
   output$outtab <- renderDT({ 
-    id.selected = subset(data(), selected == 'selected')$id
-    x = subset(data_raw(), id %in% id.selected);
-    x = x[,!(colnames(x) %in% c('selected','id'))]
+    x = subset(data(), selected == 'selected')
+    x = x[,!(colnames(x) %in% c('selected', 'id'))]
     x.num = sapply(x, class) == class(numeric())
     formatRound(
       DT::datatable(x,
