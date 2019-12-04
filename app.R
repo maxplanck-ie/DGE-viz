@@ -19,7 +19,7 @@ ui <- fluidPage(
        selectInput('inputFormat', label = 'Table format', choices = c('DEseq2','edgeR','others'), multiple = FALSE),
        tabsetPanel(
          tabPanel("Parameter",
-           sliderInput('padj.thrs', 'Threshold for padj', value =0.05, min = 0, max = 1, step = 1/100),
+           sliderInput('padj.thrs', 'Threshold for padj', value = 0.05, min = 0, max = 1, step = 1/100),
            sliderInput('logfc.thrs','Threshold for log2 fold-change', value =c(-1,1),min=-8,max=8,step=1/4),
            sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0,max=log2(2**13),step=1/10,round=TRUE)
            # fileInput('annotationFile','Annotation GTF'),
@@ -65,7 +65,7 @@ server <- function(input, output, session) {
     updateSelectInput(session,inputId = 'pvalue_col', choices = colnames(tab))
     updateSelectInput(session,inputId = 'padj_col', choices = colnames(tab))
     tab$id = paste0('id',nrow(tab))
-    
+    tab = tab[order(tab$padj)[1:10e3], ]
     return(tab)
   })
   
