@@ -2,7 +2,7 @@ library(shiny) # should be provided by shiny server by default
 library(DT, lib.loc = './Rlib')
 library(ggplot2, lib.loc = './Rlib')
 library(data.table, lib.loc = './Rlib')
-library(janitor, lib.loc = './Rlib')
+# library(janitor, lib.loc = './Rlib')
 
 source('helpers/helpers.R')
 source('helpers/interactiveplots.R')
@@ -61,8 +61,8 @@ server <- function(input, output, session) {
     tab = loadData(input$inputFile$datapath)
     if(colnames(tab)[1] == 'V1')
       colnames(tab)[1] = 'gene_id'
-    
-    tab = clean_names(tab)
+
+    # tab = clean_names(tab)
     updateSelectInput(session, inputId = 'expr_col', choices = colnames(tab))
     updateSelectInput(session, inputId = 'lfc_col', choices = colnames(tab))
     updateSelectInput(session, inputId = 'pvalue_col', choices = colnames(tab))
@@ -133,9 +133,10 @@ server <- function(input, output, session) {
   
   output$outtab <- renderDT({ 
     x = data_raw()
-    uid = subset(data(), selected == 'selected')$id
-    x = subset(x, id %in% uid)[setdiff(colnames(x), 'id')]
     x.num = sapply(x, class) == class(numeric())
+    uid = subset(data(), selected == 'selected')$id
+    
+    x = subset(x, id %in% uid)[setdiff(colnames(x), 'id')]
     
     formatRound(
       DT::datatable(x,
