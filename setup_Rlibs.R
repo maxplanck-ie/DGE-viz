@@ -11,7 +11,7 @@ cran.packages = c('DT',
              'janitor',
              'snakecase')
 
-dir.create("./", showWarnings = TRUE)
+dir.create("./Rlib", showWarnings = TRUE)
 
 b = !(cran.packages %in% rownames(installed.packages(lib.loc = './Rlib')))
 

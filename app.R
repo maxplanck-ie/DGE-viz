@@ -1,6 +1,5 @@
 library(shiny) # should be provided by shiny server by default
 library(DT, lib.loc = './Rlib')
-library(tippy, lib.loc = './Rlib')
 library(ggplot2, lib.loc = './Rlib')
 library(data.table, lib.loc = './Rlib')
 # library(janitor, lib.loc = './Rlib')
