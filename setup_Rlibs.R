@@ -13,7 +13,7 @@ cran.packages = c('DT',
 
 dir.create("./", showWarnings = TRUE)
 
-b = !(cran.packages %in% rownames(installed.cran.packages(lib.loc = './Rlib')))
+b = !(cran.packages %in% rownames(installed.packages(lib.loc = './Rlib')))
 
 if(all(!b))
   stop('All cran.packages installed already. Exit')
@@ -21,5 +21,5 @@ if(all(!b))
 
 for(p in cran.packages[b]){
   cat(">> Installing",p,' to ./Rlib\n')
-  install.cran.packages(p, lib = './Rlib/')
+  install.packages(p, lib = './Rlib/')
 }
