@@ -2,7 +2,7 @@ library(shiny) # should be provided by shiny server by default
 library(DT, lib.loc = './Rlib')
 library(ggplot2, lib.loc = './Rlib')
 library(data.table, lib.loc = './Rlib')
-library(janitor, lib.loc = './Rlib')
+# library(janitor, lib.loc = './Rlib')
 
 source('helpers/helpers.R')
 source('helpers/interactiveplots.R')
@@ -19,7 +19,7 @@ ui <- fluidPage(
        selectInput('inputFormat', label = 'Table format', choices = c('DEseq2','edgeR','others'), multiple = FALSE),
        tabsetPanel(
          tabPanel("Parameter",
-           sliderInput('padj.thrs', 'Threshold for padj', value =0.05, min = 0, max = 1, step = 1/100),
+           sliderInput('padj.thrs', 'Threshold for padj', value = 0.05, min = 0, max = 1, step = 1/100),
            sliderInput('logfc.thrs','Threshold for log2 fold-change', value =c(-1,1),min=-8,max=8,step=1/4),
            sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0,max=log2(2**13),step=1/10,round=TRUE)
            # fileInput('annotationFile','Annotation GTF'),
@@ -59,17 +59,23 @@ server <- function(input, output, session) {
   
   data_raw = eventReactive(input$inputFile, { 
     tab = loadData(input$inputFile$datapath)
-    tab = clean_names(tab)
+    if(colnames(tab)[1] == 'V1')
+      colnames(tab)[1] = 'gene_id'
+
+    # tab = clean_names(tab)
     updateSelectInput(session, inputId = 'expr_col', choices = colnames(tab))
-    updateSelectInput(session,inputId = 'lfc_col', choices = colnames(tab))
-    updateSelectInput(session,inputId = 'pvalue_col', choices = colnames(tab))
-    updateSelectInput(session,inputId = 'padj_col', choices = colnames(tab))
-    tab$id = paste0('id',nrow(tab))
+    updateSelectInput(session, inputId = 'lfc_col', choices = colnames(tab))
+    updateSelectInput(session, inputId = 'pvalue_col', choices = colnames(tab))
+    updateSelectInput(session, inputId = 'padj_col', choices = colnames(tab))
+    tab$id = paste0('id', 1:nrow(tab))
+    tab = subset(tab, !is.na(padj))
+    if(nrow(tab) > 10e3)
+      tab = tab[order(tab$padj,decreasing = FALSE)[1:10e3], ]
     
     return(tab)
   })
   
-  updateColumns <- eventReactive(c(input$inputFormat, input$update_columns),{
+  updateColumns_index <- eventReactive(c(input$inputFormat, input$update_columns),{
     if(input$inputFormat == 'DEseq2')
       return(format.deseq2())
     
@@ -85,13 +91,10 @@ server <- function(input, output, session) {
     }
   })
 
-  rows_selected = reactive({
-    NULL
-  })
-  
   data = reactive({
     y = data_raw()
-    y = y[,c(1,updateColumns(),grep('id',colnames(y)))]
+    y.copy = y
+    y = y[,c(1, updateColumns_index(), grep('^id$',colnames(y)))]
     colnames(y) <- c('gene_id', tablecols.required, 'id')
     y.copy = y
     
@@ -129,10 +132,12 @@ server <- function(input, output, session) {
   })
   
   output$outtab <- renderDT({ 
-    id.selected = subset(data(), selected == 'selected')$id
-    x = subset(data_raw(), id %in% id.selected);
-    x = x[,!(colnames(x) %in% c('selected','id'))]
+    x = data_raw()
     x.num = sapply(x, class) == class(numeric())
+    uid = subset(data(), selected == 'selected')$id
+    
+    x = subset(x, id %in% uid)[setdiff(colnames(x), 'id')]
+    
     formatRound(
       DT::datatable(x,
                     rownames = FALSE,
@@ -145,14 +150,15 @@ server <- function(input, output, session) {
                                        text = 'Download'
                                      ))
                     )),
-      which(x.num), digits = 2)
+      which(x.num), digits = 4)
   }, server=FALSE)
   
   output$preview <- renderTable({
-    y = data_raw()[1:5,setdiff(colnames(data_raw()), 'id')]
+    y = data_raw()[1:5,]
+    y = y[,setdiff(colnames(y),'id')]
     y.num = sapply(y, is.numeric)
-    y[y.num] = apply(y[y.num],2, round, 2)
-    head(as.data.frame(y))
+    y[,y.num] = apply(y[,y.num],2, round, 4)
+    return(y)
   })
   
   output$MAplot <- renderPlot({
@@ -172,7 +178,6 @@ server <- function(input, output, session) {
       geom_hline(yintercept = min(dat$pvalue[dat$padj < input$padj.thrs], na.rm = TRUE), col = 'darkgrey') + 
       theme_light()
   })
-  
 }
 
 # Run the application
