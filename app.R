@@ -1,9 +1,9 @@
 library(shiny) # should be provided by shiny server by default
 library(DT, lib.loc = './Rlib')
+library(tippy, lib.loc = './Rlib')
 library(ggplot2, lib.loc = './Rlib')
 library(data.table, lib.loc = './Rlib')
 # library(janitor, lib.loc = './Rlib')
-
 source('helpers/helpers.R')
 source('helpers/interactiveplots.R')
 
@@ -41,8 +41,11 @@ ui <- fluidPage(
    mainPanel(
      tabsetPanel(
        tabPanel('Plots',
-                plotOutput("MAplot", brush = "ma_brush"),
-                plotOutput("volcanoPlot", brush = "volcano_brush")),
+                plotOutput("MAplot", brush = "ma_coords", 
+                           hover = hoverOpts("ma_hover", delay = 100, delayType = "debounce", clip = TRUE)),
+                plotOutput("volcanoPlot", brush = "volcano_coords",
+                           hover = hoverOpts("volcano_hover", delay = 100, delayType = "debounce", clip = TRUE))),
+                
        tabPanel('Table - selected data', DT::dataTableOutput('outtab')),
        tabPanel("Table - preview input", tableOutput('preview')),
        tabPanel("Sessioninfo", verbatimTextOutput("sessionInfo"))
@@ -107,15 +110,15 @@ server <- function(input, output, session) {
     if(input$logTransform.padj)
       y[,tablecols.required[4]] = -log10(y[,tablecols.required[4]])
     
-    if(!is.null(input$ma_brush)){
-      print("Using ma_brush to select")
-      update.vals = ma_brush(input$ma_brush)
+    if(!is.null(input$ma_coords)){
+      print("Using ma_coords to select")
+      update.vals = ma_coords(input$ma_coords)
       y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
                         update.vals$expr[1] < y$baseMean & y$baseMean < update.vals$expr[2],
                       'selected','not');
-    } else if(!is.null(input$volcano_brush)) {
-      print("Using volcano_brush to select")
-      update.vals = volcano_brush(input$volcano_brush)
+    } else if(!is.null(input$volcano_coords)) {
+      print("Using volcano_coords to select")
+      update.vals = volcano_coords(input$volcano_coords)
       y$selected = ifelse(update.vals$lfc[1] < y$log2FoldChange & y$log2FoldChange < update.vals$lfc[2] &
                             update.vals$pval[1] < y$pvalue & y$pvalue < update.vals$pval[2],
                           'selected','not')
@@ -178,6 +181,27 @@ server <- function(input, output, session) {
       geom_hline(yintercept = min(dat$pvalue[dat$padj < input$padj.thrs], na.rm = TRUE), col = 'darkgrey') + 
       theme_light()
   })
+  
+  output$errorOut = renderText({
+    hover0 = input$ma_hover
+    hover1 = input$volcano_hover
+    dat0 = data_raw()
+    
+    pt0 = nearPoints(data(), hover0, threshold = 5, maxpoints = 1, addDist = TRUE)
+    pt1 = nearPoints(data(), hover1, threshold = 5, maxpoints = 1, addDist = TRUE)
+    if(nrow(pt0) == 0 & nrow(pt1) == 0 ) return(NULL)
+    
+    if(nrow(pt0) == 0){ pt = pt1 } else { pt = pt0 }
+    pt = as.data.frame(pt[c('gene_id',tablecols.required)])
+    pt = subset(dat0, gene_id == c(pt0$gene_id, pt1$gene_id))
+    for(i in which(sapply(pt, function(x)all(is.numeric(x))))){
+      pt[[i]] = round(pt[[i]], 2)
+    }
+    n0 = mapply(function(x, y) {paste0(x,':\t',y)}, names(pt), pt)
+    n0 = paste(n0, collapse = '\n')
+    n0
+  })
+  
 }
 
 # Run the application
