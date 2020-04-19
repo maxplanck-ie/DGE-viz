@@ -18,8 +18,5 @@ b = !(cran.packages %in% rownames(installed.packages(lib.loc = './Rlib')))
 if(all(!b))
   stop('All cran.packages installed already. Exit')
 
-
-for(p in cran.packages[b]){
-  cat(">> Installing",p,' to ./Rlib\n')
-  install.packages(p, lib = './Rlib/')
-}
+cat(">> Installing packages to ./Rlib\n", cran.packages[b])
+install.packages(cran.packages[b], lib = './Rlib/', libs_only = TRUE)
