@@ -1,7 +1,9 @@
+rversion = gsub('R version (.*) (.*)','\\1',sessionInfo()$R.version$version.string)
+lib.dir = paste0('Rlib_',rversion)
 library(shiny) # should be provided by shiny server by default
-library(DT, lib.loc = './Rlib')
-library(ggplot2, lib.loc = './Rlib')
-library(data.table, lib.loc = './Rlib')
+library(DT, lib.loc = lib.dir)
+library(ggplot2, lib.loc = lib.dir)
+library(data.table, lib.loc = lib.dir)
 # library(janitor, lib.loc = './Rlib')
 source('helpers/helpers.R')
 source('helpers/interactiveplots.R')
