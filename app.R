@@ -1,8 +1,11 @@
 library(shiny)
-library(data.table)
-library(dplyr)
-library(plotly)
-library(DT)
+
+rversion = gsub('R version (.*) (.*)','\\1',sessionInfo()$R.version$version.string)
+lib.dir = paste0('Rlib_',rversion)
+library(data.table, lib.loc = lib.dir)
+library(dplyr, lib.loc = lib.dir)
+library(plotly, lib.loc = lib.dir)
+library(DT, lib.loc = lib.dir)
 
 tab.colnames = NULL
 gene_id = NULL
