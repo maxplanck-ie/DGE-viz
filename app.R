@@ -47,11 +47,10 @@ ui <- fluidPage(
                  plotlyOutput(outputId = "ma"),
                  plotlyOutput(outputId = "volcano")),
         tabPanel('Table - selected data', DT::dataTableOutput('outtab')),
-        tabPanel("Table - preview input", tableOutput('preview')),
-        tabPanel("Sessioninfo", verbatimTextOutput("sessionInfo"))
+        tabPanel("Table - preview input", tableOutput('preview'))
+        # ,
+        # tabPanel("Sessioninfo", verbatimTextOutput("sessionInfo"))
       )))
-  
-  
 )
 
 server <- function(input, output, session, ...) {
@@ -93,7 +92,8 @@ server <- function(input, output, session, ...) {
                      key = gene_id), show.legend = FALSE) + 
       scale_color_manual(values = c('TRUE' = 'blue','FALSE'='grey')) + 
       geom_hline(yintercept = input$logfc.thrs, color = 'darkgrey', lty = 2) +
-      geom_vline(xintercept = input$expr.thrs, color = 'darkgrey', lty = 2) 
+      geom_vline(xintercept = input$expr.thrs, color = 'darkgrey', lty = 2) + 
+      theme_light()
     
     height <- session$clientData$output_p_height
     width <- session$clientData$output_p_width
@@ -109,7 +109,9 @@ server <- function(input, output, session, ...) {
                      key = gene_id), show.legend = FALSE) + 
       scale_color_manual(values = c('TRUE' = 'blue','FALSE'='grey')) + 
       geom_hline(yintercept = input$padj.thrs, color = 'darkgrey', lty = 2) + 
-      geom_vline(xintercept = input$logfc.thrs, color = 'darkgrey', lty = 2) 
+      geom_vline(xintercept = input$logfc.thrs, color = 'darkgrey', lty = 2) +
+      theme_light()
+    
     height <- session$clientData$output_p_height
     width <- session$clientData$output_p_width
     
