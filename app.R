@@ -9,6 +9,7 @@ library(ggplot2, lib.loc = lib.dir)
 
 tab.colnames = NULL
 gene_id = NULL
+walkthrough_text = paste(readLines('template/walkthrough.html'),collapse ='\n')
 
 ui <- fluidPage(
   titlePanel("Investigate your RNA-seq DGE data"),
@@ -40,8 +41,8 @@ ui <- fluidPage(
                  plotlyOutput(outputId = "ma"),
                  plotlyOutput(outputId = "volcano")),
         tabPanel('Table - selected data', DT::dataTableOutput('outtab')),
+        tabPanel('Help', HTML(walkthrough_text)),
         tabPanel("Table - preview input", tableOutput('preview')),
-        tabPanel("walkthrough", textOutput("walk-through")),
         tabPanel("Sessioninfo", verbatimTextOutput("sessionInfo"))
       )))
 )
