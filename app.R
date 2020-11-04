@@ -32,7 +32,7 @@ ui <- fluidPage(
         inputId = "genes", 
         label = NULL,
         # placeholder is enabled when 1st choice is an empty string 
-        choices = c("Choose a gene" = "", gene_id),
+        choices = c("Select your genes" = "", gene_id),
         multiple = TRUE
       ),
       tabsetPanel(
@@ -41,6 +41,7 @@ ui <- fluidPage(
                  plotlyOutput(outputId = "volcano")),
         tabPanel('Table - selected data', DT::dataTableOutput('outtab')),
         tabPanel("Table - preview input", tableOutput('preview')),
+        tabPanel("walkthrough", textOutput("walk-through")),
         tabPanel("Sessioninfo", verbatimTextOutput("sessionInfo"))
       )))
 )
@@ -48,7 +49,6 @@ ui <- fluidPage(
 server <- function(input, output, session, ...) {
   
   data_raw = eventReactive(input$inputFile, {
-    library(dplyr)
     print(">>> Loading table")
     tab = fread(input$inputFile$datapath)
     return(tab)
@@ -116,7 +116,7 @@ server <- function(input, output, session, ...) {
       tab0 = data_sliders() 
     } else {
       print(">>> feature_id selection") 
-      tab0 <- tab %>% mutate(selected = (gene_id %in% input$genes) | (symbol %in% input$genes))
+      tab0 <- data_parsed() %>% mutate(selected = (gene_id %in% input$genes) | (symbol %in% input$genes))
     }    
   })
   
