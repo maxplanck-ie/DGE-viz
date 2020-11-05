@@ -10,6 +10,8 @@ library(ggplot2, lib.loc = lib.dir)
 tab.colnames = NULL
 gene_id = NULL
 walkthrough_text = paste(readLines('template/walkthrough.html'),collapse ='\n')
+choices_testdata = list.files('./testdata//', pattern = '.tsv$', full.names = TRUE)
+names(choices_testdata) = gsub('.tsv','',basename(choices_testdata))
 
 ui <- fluidPage(
   titlePanel("Investigate your RNA-seq DGE data"),
@@ -21,10 +23,14 @@ ui <- fluidPage(
         tabPanel("Parameter",
                  sliderInput('padj.thrs', 'Threshold for padj', value = 0.05, min = 0, max = .1, step = 0.01),
                  sliderInput('logfc.thrs','Threshold for log2 fold-change', value =c(-1,1),min=-8,max=8,step=1/4),
-                 sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0, max=15,step=1/10,round=TRUE)
+                 sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0, max=15,step=1/10,round=TRUE),
+                 actionButton('applySliders', "Apply")
         ),
         tabPanel("Statistics",
-                 tableOutput('statsOut'))
+                 tableOutput('statsOut')),
+        tabPanel("Test data",
+                 selectInput('testdata_select',"Test data",choices_testdata),
+                 actionButton("testdata_load", "Load"))
       ),
       verbatimTextOutput('errorOut', placeholder = TRUE)
     ),
@@ -48,6 +54,9 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session, ...) {
+  # load_testdata = observeEvent(input$testdata_load, {
+  #   return(fread(input$testdata_load))
+  # })
   
   data_raw = eventReactive(input$inputFile, {
     print(">>> Loading table")
@@ -64,9 +73,8 @@ server <- function(input, output, session, ...) {
     } else {
       tab$symbol = tab$feature_id
     }
-    cat(">>> Table format:",input$inputFormat,'\n')
-    if(!any(c('DESeq2','edgeR') %in% input$inputFormat)) return(NULL)
-    
+    cat(">>> Table format:",isolate({input$inputFormat}),'\n')
+    if(!any(c('DESeq2','edgeR') %in% isolate({input$inputFormat}))) return(NULL)
     
     if(input$inputFormat == 'DESeq2'){
       tab.out = data.frame(gene_id = tab$feature_id,
@@ -104,8 +112,8 @@ server <- function(input, output, session, ...) {
     tab <- data_parsed()
     print(">>> Parsing selection")
     tab0 <- tab %>% mutate(selected = padj < input$padj.thrs & 
-                     (log2FoldChange < input$logfc.thrs[1] | log2FoldChange > input$logfc.thrs[2]) &
-                     (input$expr.thrs[1] <= log2(baseMean) & log2(baseMean) <= input$expr.thrs[2]))
+                             (log2FoldChange < input$logfc.thrs[1] | log2FoldChange > input$logfc.thrs[2]) &
+                             (input$expr.thrs[1] <= log2(baseMean) & log2(baseMean) <= input$expr.thrs[2]))
     
     tab0 <- tab0 %>% mutate(selected = ifelse(is.na(selected), FALSE, selected))
     return(tab0)
@@ -122,8 +130,8 @@ server <- function(input, output, session, ...) {
   })
   
   output$ma <- renderPlotly({
-    
-    p1 <- ggplot(data = data_select(),  aes(log2(baseMean), log2FoldChange)) + 
+    tab0 = data_select()
+    p1 <- ggplot(data = tab0,  aes(log2(baseMean), log2FoldChange)) + 
       geom_point(aes(color = selected,
                      text = paste0(symbol,' (',gene_id,')'),
                      key = gene_id), show.legend = FALSE) + 
@@ -134,12 +142,12 @@ server <- function(input, output, session, ...) {
     
     height <- session$clientData$output_p_height
     width <- session$clientData$output_p_width
-    toWebGL(ggplotly(p1, height = height, width = width, tooltip = c('text','x','y')))
     
+    toWebGL(ggplotly(p1, height = height, width = width, tooltip = c('text','x','y')))
   })
   
   output$volcano <- renderPlotly({
-    tab0 = data_select() 
+    tab0 = data_select()
     pval.cutoff = -log10(max(subset(tab0, padj < input$padj.thrs)$pvalue))
     p2 <- ggplot(data = data_select(), aes(log2FoldChange, -log10(pvalue))) +
       geom_point(aes(color = selected, 
@@ -152,9 +160,9 @@ server <- function(input, output, session, ...) {
     
     height <- session$clientData$output_p_height
     width <- session$clientData$output_p_width
-    
+    toWebGL(p2)
     toWebGL(ggplotly(p2, height = height, width = width, tooltip = c('text','x','y')))
-  })  
+  })
   
   output$outtab <- renderDataTable({
     d <- event_data("plotly_selected")
