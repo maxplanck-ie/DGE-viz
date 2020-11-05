@@ -1,11 +1,15 @@
 library(shiny)
+source('helpers/helpers.R')
+config0 = parse_yaml('./config.yaml')
 
-lib.dir = NULL
-library(plotly, lib.loc = lib.dir)
-library(data.table, lib.loc = lib.dir)
-library(DT, lib.loc = lib.dir)
-library(ggplot2, lib.loc = lib.dir)
+lib.dir0 = config0['lib.path']
 
+library(plotly, lib.loc = lib.dir0)
+library(data.table, lib.loc = lib.dir0)
+library(DT, lib.loc = lib.dir0)
+library(ggplot2, lib.loc = lib.dir0)
+
+setDTthreads(1)
 
 tab.colnames = NULL
 gene_id = NULL

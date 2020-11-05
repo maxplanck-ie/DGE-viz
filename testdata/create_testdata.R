@@ -1,13 +1,16 @@
+source('../helpers/helpers.R')
+config0 = parse_yaml('../config.yaml')
 # BiocManager::install("pasilla", lib = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
-BiocManager::install("DESeq2", lib = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
-BiocManager::install("edgeR", lib = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
+# BiocManager::install("DESeq2", lib = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
+# BiocManager::install("edgeR", lib = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
 
-library(DESeq2, lib.loc = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
-library(pasilla, lib.loc = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
-library(dplyr, lib.loc = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
-library(tibble, lib.loc = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
-library(readr, lib.loc = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
-library(edgeR, lib.loc = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
+lib.dir0 = config0['lib.path']
+library(DESeq2, lib.loc = lib.loc0)
+library(pasilla, lib.loc = lib.loc0)
+library(dplyr, lib.loc = lib.loc0)
+library(tibble, lib.loc = lib.loc0)
+library(readr, lib.loc = lib.loc0)
+library(edgeR, lib.loc = lib.loc0)
 
 pasCts <- system.file("extdata",
                       "pasilla_gene_counts.tsv",
