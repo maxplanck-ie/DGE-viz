@@ -205,8 +205,8 @@ server <- function(input, output, session, ...) {
     tab0 = data_sliders()
     tab1 = tab0 %>% filter(marked)
     data.frame(group = c('up','down','total'), 
-               count = c(sum(tab1$log2FoldChange < 0),
-                         sum(tab1$log2FoldChange > 0),
+               count = c(sum(tab1$log2FoldChange > 0),
+                         sum(tab1$log2FoldChange < 0),
                          nrow(tab1))) 
   }, colnames = FALSE)
   
