@@ -14,8 +14,6 @@ setDTthreads(1)
 tab.colnames = NULL
 gene_id = NULL
 walkthrough_text = paste(readLines('template/walkthrough.html'),collapse ='\n')
-choices_testdata = list.files('./testdata//', pattern = '.tsv$', full.names = TRUE)
-names(choices_testdata) = gsub('.tsv','',basename(choices_testdata))
 
 ui <- fluidPage(
   titlePanel("Investigate your RNA-seq DGE data"),
@@ -31,10 +29,7 @@ ui <- fluidPage(
                  actionButton('applySliders', "Apply")
         ),
         tabPanel("Statistics",
-                 tableOutput('statsOut')),
-        tabPanel("Test data",
-                 selectInput('testdata_select',"Test data",choices_testdata),
-                 actionButton("testdata_load", "Load"))
+                 tableOutput('statsOut'))
       ),
       verbatimTextOutput('errorOut', placeholder = TRUE)
     ),
@@ -58,9 +53,6 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session, ...) {
-  # load_testdata = observeEvent(input$testdata_load, {
-  #   return(fread(input$testdata_load))
-  # })
   
   data_raw = eventReactive(input$inputFile, {
     print(">>> Loading table")
