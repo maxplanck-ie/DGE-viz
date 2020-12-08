@@ -45,6 +45,9 @@ ui <- fluidPage(
         tabPanel('Plots',
                  plotlyOutput(outputId = "ma"),
                  plotlyOutput(outputId = "volcano")),
+                 # plotOutput(outputId = "ma"),
+                 # plotOutput(outputId = "volcano")),
+        
         tabPanel('Table - selected data', DT::dataTableOutput('outtab')),
         tabPanel('Help', HTML(walkthrough_text)),
         tabPanel("Table - preview input", tableOutput('preview')),
@@ -107,11 +110,11 @@ server <- function(input, output, session, ...) {
   data_sliders = reactive({
     tab <- data_parsed()
     print(">>> Parsing selection")
-    tab0 <- tab %>% mutate(selected = padj < input$padj.thrs & 
+    tab0 <- tab %>% mutate(marked = padj < input$padj.thrs & 
                              (log2FoldChange < input$logfc.thrs[1] | log2FoldChange > input$logfc.thrs[2]) &
                              (input$expr.thrs[1] <= log2(baseMean) & log2(baseMean) <= input$expr.thrs[2]))
     
-    tab0 <- tab0 %>% mutate(selected = ifelse(is.na(selected), FALSE, selected))
+    tab0 <- tab0 %>% mutate(marked = ifelse(is.na(marked), FALSE, marked))
     return(tab0)
   })
   
@@ -121,14 +124,17 @@ server <- function(input, output, session, ...) {
       tab0 = data_sliders() 
     } else {
       print(">>> feature_id selection") 
-      tab0 <- data_parsed() %>% mutate(selected = (gene_id %in% input$genes) | (symbol %in% input$genes))
+      tab0 <- data_parsed() %>% mutate(marked = (gene_id %in% input$genes) | (symbol %in% input$genes))
     }    
   })
   
   output$ma <- renderPlotly({
+    input$logfc.thrs
+    input$expr.thrs
     tab0 = data_select()
+    
     p1 <- ggplot(data = tab0,  aes(log2(baseMean), log2FoldChange)) + 
-      geom_point(aes(color = selected,
+      geom_point(aes(color = marked,
                      text = paste0(symbol,' (',gene_id,')'),
                      key = gene_id), show.legend = FALSE) + 
       scale_color_manual(values = c('TRUE' = 'blue','FALSE'='grey')) + 
@@ -146,17 +152,17 @@ server <- function(input, output, session, ...) {
     tab0 = data_select()
     pval.cutoff = -log10(max(subset(tab0, padj < input$padj.thrs)$pvalue))
     p2 <- ggplot(data = data_select(), aes(log2FoldChange, -log10(pvalue))) +
-      geom_point(aes(color = selected, 
+      geom_point(aes(color = marked,
                      text = paste0(symbol,' (',gene_id,')'),
-                     key = gene_id), show.legend = FALSE) + 
-      scale_color_manual(values = c('TRUE' = 'blue','FALSE'='grey')) + 
-      geom_hline(yintercept = pval.cutoff, color = 'darkgrey', lty = 2) + 
+                     key = gene_id), show.legend = FALSE) +
+      scale_color_manual(values = c('TRUE' = 'blue','FALSE'='grey')) +
+      geom_hline(yintercept = pval.cutoff, color = 'darkgrey', lty = 2) +
       geom_vline(xintercept = input$logfc.thrs, color = 'darkgrey', lty = 2) +
       theme_light()
-    
+
     height <- session$clientData$output_p_height
     width <- session$clientData$output_p_width
-    
+
     toWebGL(ggplotly(p2, height = height, width = width, tooltip = c('text','x','y')))
   })
   
@@ -165,7 +171,7 @@ server <- function(input, output, session, ...) {
     tab = data_sliders() 
     if (is.null(d)){
       print(">>> outtab: Slider select")
-      tab0 = tab %>% filter(selected) %>% select(-selected)
+      tab0 = tab %>% filter(marked) %>% select(-marked)
     } else {
       print(">>> outtab: Key select")
       tab0 = tab %>% filter(gene_id %in% d$key)
@@ -197,7 +203,7 @@ server <- function(input, output, session, ...) {
   
   output$statsOut <- renderTable({
     tab0 = data_sliders()
-    tab1 = tab0 %>% filter(selected)
+    tab1 = tab0 %>% filter(marked)
     data.frame(group = c('up','down','total'), 
                count = c(sum(tab1$log2FoldChange < 0),
                          sum(tab1$log2FoldChange > 0),
