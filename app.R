@@ -36,9 +36,9 @@ ui <- fluidPage(
     mainPanel(
       selectizeInput(
         inputId = "genes", 
-        label = NULL,
+        label = 'Selected genes',
         # placeholder is enabled when 1st choice is an empty string 
-        choices = c("Select your genes" = "", gene_id),
+        choices = c("Select a gene set" = "", gene_id),
         multiple = TRUE
       ),
       tabsetPanel(
@@ -156,7 +156,7 @@ server <- function(input, output, session, ...) {
     
     height <- session$clientData$output_p_height
     width <- session$clientData$output_p_width
-    toWebGL(p2)
+    
     toWebGL(ggplotly(p2, height = height, width = width, tooltip = c('text','x','y')))
   })
   
