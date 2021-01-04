@@ -5,8 +5,7 @@ config0 = parse_yaml('../config.yaml')
 # BiocManager::install("edgeR", lib = '/rstudio/rauer/Rlib_DGE-viz_3.6.0')
 
 lib.dir0 = config0['lib.path']
-if(is.na(lib.dir0))
-  lib.dir0 = NULL
+
 library(DESeq2, lib.loc = lib.dir0)
 library(pasilla, lib.loc = lib.dir0)
 library(dplyr, lib.loc = lib.dir0)
@@ -46,7 +45,7 @@ tab0 = results(dds) %>% as.data.frame() %>% rownames_to_column()
 write_tsv(tab0,'./Pasilla_testdata.DESeq2.tsv')
 
 tab1 = lfcShrink(dds,coef="condition_untreated_vs_treated", type="normal") %>% as.data.frame() %>% rownames_to_column()
-write_tsv(tab0,'./Pasilla_testdata.DESeq2_lfcShrink.tsv')
+write_tsv(tab1,'./Pasilla_testdata.DESeq2_lfcShrink.tsv')
 
 # edgeR
 y <- DGEList(counts=cts,group=as.factor(coldata$type))
