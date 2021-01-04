@@ -29,7 +29,7 @@ ui <- fluidPage(
                  sliderInput('expr.thrs','Thresholds for expression', value=c(-Inf, Inf),min=0, max=15,step=1/10,round=TRUE),
                  actionButton('applySliders', "Apply")
         ),
-        tabPanel("Statistics",
+        tabPanel("Gene count (marked)",
                  tableOutput('statsOut'))
       ),
       verbatimTextOutput('errorOut', placeholder = TRUE)
@@ -37,9 +37,9 @@ ui <- fluidPage(
     mainPanel(
       selectizeInput(
         inputId = "genes", 
-        label = 'Selected genes',
+        label = 'Marked genes',
         # placeholder is enabled when 1st choice is an empty string 
-        choices = c("Select a gene set" = "", gene_id),
+        choices = c("Set of genes" = "", gene_id),
         multiple = TRUE
       ),
       tabsetPanel(
