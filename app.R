@@ -1,5 +1,6 @@
 library(shiny)
 source('helpers/helpers.R')
+
 config0 = parse_yaml('./config.yaml')
 
 lib.dir0 = config0['lib.path']
@@ -48,9 +49,9 @@ ui <- fluidPage(
                  # plotOutput(outputId = "ma"),
                  # plotOutput(outputId = "volcano")),
         
-        tabPanel('Table - selected data', DT::dataTableOutput('outtab')),
+        tabPanel('Table: selected data', DT::dataTableOutput('outtab')),
         tabPanel('Help', HTML(walkthrough_text)),
-        tabPanel("Table - preview input", tableOutput('preview')),
+        tabPanel("Table: preview input", tableOutput('preview')),
         tabPanel("Sessioninfo", verbatimTextOutput("sessionInfo"))
       )))
 )
@@ -126,20 +127,23 @@ server <- function(input, output, session, ...) {
       print(">>> feature_id selection") 
       tab0 <- data_parsed() %>% mutate(marked = (gene_id %in% input$genes) | (symbol %in% input$genes))
     }    
-  })
+  }) %>% debounce(500)
   
   output$ma <- renderPlotly({
-    input$logfc.thrs
-    input$expr.thrs
+    # input$logfc.thrs
+    # input$expr.thrs
     tab0 = data_select()
+    
+    expr.thrs = isolate({input$expr.thrs})
+    lfc.thrs = isolate({input$logfc.thrs})
     
     p1 <- ggplot(data = tab0,  aes(log2(baseMean), log2FoldChange)) + 
       geom_point(aes(color = marked,
                      text = paste0(symbol,' (',gene_id,')'),
                      key = gene_id), show.legend = FALSE) + 
       scale_color_manual(values = c('TRUE' = 'blue','FALSE'='grey')) + 
-      geom_hline(yintercept = input$logfc.thrs, color = 'darkgrey', lty = 2) +
-      geom_vline(xintercept = input$expr.thrs, color = 'darkgrey', lty = 2) + 
+      geom_hline(yintercept = lfc.thrs, color = 'darkgrey', lty = 2) +
+      geom_vline(xintercept = expr.thrs, color = 'darkgrey', lty = 2) + 
       theme_light()
     
     height <- session$clientData$output_p_height
@@ -150,14 +154,17 @@ server <- function(input, output, session, ...) {
   
   output$volcano <- renderPlotly({
     tab0 = data_select()
-    pval.cutoff = -log10(max(subset(tab0, padj < input$padj.thrs)$pvalue))
+    
+    pval.cutoff = isolate({-log10(max(subset(tab0, padj < input$padj.thrs)$pvalue))})
+    lfc.thrs = isolate({input$logfc.thrs})
+    
     p2 <- ggplot(data = data_select(), aes(log2FoldChange, -log10(pvalue))) +
       geom_point(aes(color = marked,
                      text = paste0(symbol,' (',gene_id,')'),
                      key = gene_id), show.legend = FALSE) +
       scale_color_manual(values = c('TRUE' = 'blue','FALSE'='grey')) +
       geom_hline(yintercept = pval.cutoff, color = 'darkgrey', lty = 2) +
-      geom_vline(xintercept = input$logfc.thrs, color = 'darkgrey', lty = 2) +
+      geom_vline(xintercept = lfc.thrs, color = 'darkgrey', lty = 2) +
       theme_light()
 
     height <- session$clientData$output_p_height
