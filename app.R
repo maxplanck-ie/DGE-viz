@@ -183,21 +183,28 @@ server <- function(input, output, session, ...) {
       print(">>> outtab: Key select")
       tab0 = tab %>% filter(gene_id %in% d$key)
     }
+    # Katarzyna bug report:
+    #  'Error in FUN: 'options' must be a fully named list, or have no names (NULL)'
+    # after I select a couple of genes on the MA plot and then go to tab 
+    # "Table-selected data"
+    # Packages: DT_0.14, data.table_1.13.0
     
     formatRound(
       DT::datatable(tab0,
                     rownames = FALSE,
-                    extensions = 'Buttons', options = list(
+                    extensions = 'Buttons', 
+                    options = list(
                       dom = 'Bfrtip',
-                      buttons = list('copy', 
-                                     list(                        
-                                       extend = 'collection',
-                                       buttons = c('csv', 'excel', 'pdf'),
-                                       text = 'Download'
-                                     ))
+                      # buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+                      buttons = list('copy',
+                      list(
+                        extend = 'collection',
+                        buttons = c('csv', 'excel', 'pdf'),
+                        text = 'Download'
+                      ))
                     )),
       which(sapply(data_parsed(), is.numeric)), digits = 4)
-  }) #, server = FALSE)
+  }, server = FALSE)
   
   
   output$preview <- renderTable({
