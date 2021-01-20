@@ -189,22 +189,23 @@ server <- function(input, output, session, ...) {
     # "Table-selected data"
     # Packages: DT_0.14, data.table_1.13.0
     
-    formatRound(
-      DT::datatable(tab0,
-                    rownames = FALSE,
-                    extensions = 'Buttons', 
-                    options = list(
-                      dom = 'Bfrtip',
-                      # buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-                      buttons = list('copy',
-                      list(
-                        extend = 'collection',
-                        buttons = c('csv', 'excel', 'pdf'),
-                        text = 'Download'
-                      ))
-                    )),
-      which(sapply(data_parsed(), is.numeric)), digits = 4)
-  }, server = FALSE)
+    dt.tab = DT::datatable(tab0,
+                  rownames = FALSE,
+                  extensions = 'Buttons',
+                  options = list(
+                    dom = 'Bfrtip',
+                    # buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+                    buttons = list('copy',
+                    list(
+                      extend = 'collection',
+                    buttons = c('csv', 'excel', 'pdf'),
+                    text = 'Download'
+                  ))
+                  )
+    )
+    dt.tab = formatRound(dt.tab, as.vector(which(sapply(data_parsed(), is.numeric))), digits = 4)
+    dt.tab
+  }, server = TRUE)
   
   
   output$preview <- renderTable({
