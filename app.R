@@ -205,7 +205,7 @@ server <- function(input, output, session, ...) {
     )
     dt.tab = formatRound(dt.tab, as.vector(which(sapply(data_parsed(), is.numeric))), digits = 4)
     dt.tab
-  }, server = TRUE)
+  }, server = FALSE)
   
   
   output$preview <- renderTable({
